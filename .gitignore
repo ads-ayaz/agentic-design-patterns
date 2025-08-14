@@ -1,0 +1,21 @@
+# Byte-compiled files and temporary files
+__pycache__/
+*.pyc
+
+# Virtual environment directories
+.venv/
+venv/
+env/
+
+# Packaging and build artifacts
+build/
+dist/
+*.egg-info/
+
+# Editor and IDE files
+.vscode/
+.idea/
+.DS_Store
+
+# Configuration files
+.env
