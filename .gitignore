@@ -19,3 +19,7 @@ dist/
 
 # Configuration files
 .env
+
+# Temporary directories
+tmp/
+out/
