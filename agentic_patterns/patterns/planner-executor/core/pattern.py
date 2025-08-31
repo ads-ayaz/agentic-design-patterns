@@ -134,7 +134,7 @@ class PlannerExecutorPattern:
         """
 
         # Retrieve or instantiate the Worker agent
-        worker = AgentFactory.get_agent('worker')
+        worker = AgentFactory.get_agent('worker', from_cache=False)
 
         # When calling this function standalone, set enable_trace to True
         if enable_trace:

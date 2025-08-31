@@ -15,10 +15,31 @@ class AgentFactory:
     _config_loader = AgentConfigLoader()  # Loads YAML agent configurations
 
     @classmethod
-    def get_agent(cls, agent_type: str) -> Agent:
+    def get_agent(cls, agent_type: str, from_cache: bool = True) -> Agent:
+        """
+        Retrieves an instance of an agent, skipping the cache if `from_cache` is False
+        """
         # Return cached agent if already created
-        if agent_type in cls._agents:
+        if from_cache and agent_type in cls._agents:
+            print(f"- Retrieving {agent_type} agent from cache.")
             return cls._agents[agent_type]
+
+        # Create a new agent instance
+        agent = AgentFactory._create_agent(agent_type=agent_type)
+
+        # Store instance in cache and return it
+        if from_cache:
+            cls._agents[agent_type] = agent
+            print(f"- Cached {agent_type} agent.")
+
+        return agent
+
+    
+    @classmethod
+    def _create_agent(cls, agent_type: str) -> Agent:
+        """
+        Create and return a new instance of the requested agent type.
+        """
 
         # Load agent configuration from YAML
         agent_config = cls._config_loader.get_agent_config(agent_type)
@@ -58,8 +79,7 @@ class AgentFactory:
             model_settings=model_settings
         )
 
-        # Store instance in cache and return it
-        cls._agents[agent_type] = agent
+        print(f"Created a new {agent_type} agent.")
         return agent
 
     @staticmethod
