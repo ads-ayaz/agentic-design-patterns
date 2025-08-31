@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 class AgentConfigLoader:
-    def __init__(self, config_path: str = './tmp/agents-config.yaml'):
+    def __init__(self, config_path: str = './config/agents-config.yaml'):
         self.config_path = Path(config_path)
         self.data = self._load()
 
