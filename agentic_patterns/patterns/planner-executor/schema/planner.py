@@ -19,7 +19,7 @@ class PlannerTask(BaseModel):
 class TasksPlan(BaseModel):
     """Represents the Planner’s full response containing the goal and task list."""
 
-    goal: str = Field(..., description="Your interpretation of the original objective."),
+    goal: str = Field(..., description="Your interpretation of the original objective.")
     plan: list[PlannerTask] = Field(
         default_factory=list, 
         description="Set of tasks that collectively fulfill the objective."
