@@ -2,6 +2,7 @@
 # Coordinates execution of the Planner–Executor pattern from a single interface.
 
 import asyncio
+import json
 from agents import Runner, trace
 from collections import defaultdict
 from typing import Set
@@ -34,7 +35,8 @@ class PlannerExecutorPattern:
         """
 
         planner = AgentFactory.get_agent("planner")
-        executor = AgentFactory.get_agent("executor")
+        # executor = AgentFactory.get_agent("executor")
+        consolidator = AgentFactory.get_agent("consolidator")
 
         # Step 1: Use Planner to generate a plan
         with trace(planner.name):
@@ -44,16 +46,20 @@ class PlannerExecutorPattern:
             raise ValueError("Planner agent failed to produce a valid plan.")
 
         plan = planner_result.final_output_as(TasksPlan)
-        plan_str = plan.model_dump_json()
 
-        # Step 2: Use Executor to execute the plan
-        with trace(executor.name):
-            executor_result = await Runner.run(executor, plan_str)
+        # Step 2: Execute the plan and consolidate the results
+        with trace(consolidator.name):
+            ochestrator_result = await PlannerExecutorPattern._orchestrate_tasks(plan)
 
-        if executor_result and executor_result.final_output:
-            return executor_result.final_output_as(ExecutorResponse)
+            consolidation_dict = {'tasks_plan': plan.model_dump(), 'tasks_output': ochestrator_result.model_dump()}
+            consolidation_str = json.dumps(consolidation_dict)
+
+            consolidator_result = await Runner.run(consolidator, consolidation_str)
+
+        if consolidator_result and consolidator_result.final_output:
+            return consolidator_result.final_output_as(ExecutorResponse)
         else:
-            raise ValueError("The Executor did not return a valid response.")
+            raise ValueError("The Consolidator did not return a valid response.")
         
     @staticmethod
     async def _orchestrate_tasks(task_plan: TasksPlan) -> OrchestratorResponse:
