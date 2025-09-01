@@ -82,7 +82,7 @@ class PlannerExecutorPattern:
         # Initialize pq with a throwaway queue if none was provided or use progress_report
         pq = asyncio.Queue() if progress_report is None else progress_report
 
-        await pq.put(f"Started orchestrate_tasks tool\n")
+        print(f"Started orchestrate_tasks tool")
         if task_plan is None:
             raise ValueError("Cannot orchestrate an empty task plan.")
 

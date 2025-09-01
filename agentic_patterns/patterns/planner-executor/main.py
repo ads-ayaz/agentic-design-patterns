@@ -3,6 +3,9 @@
 
 import asyncio
 import gradio as gr
+import os
+import threading
+import time
 
 import core.tool_loader
 from core.env import load_environment
@@ -23,11 +26,11 @@ async def run(query: str, progress_report: asyncio.Queue = None) -> str:
         result: ExecutorResponse = await PlannerExecutorPattern.run(query, progress_report=progress_report)
         msg = f"**Status:** {result.status}"
 
-        if result.final_output:
+        if result.final_output and result.reasoning:
+            msg = f"**Status:** {result.status}\n\n**Reasoning:**\n{result.reasoning}\n---\n"
             response = result.final_output
-        elif result.reasoning:
-            msg = f"**Status:** {result.status}\n\n**Reasoning:**\n{result.reasoning}"
-            response = msg
+        elif result.final_output:
+            response = result.final_output
         else:
             response = msg
     except Exception as e:
@@ -108,41 +111,75 @@ async def wrapped_run(query: str):
         gr.Markdown(label="Progress", value=final_update)
     )
 
+def on_exit():
+    """ 
+    Called by the exit button
+    """
+
+    # Update UI and disable controls
+    yield(
+        gr.Dropdown(label="Use a Sample Query: (optional)", interactive=False),
+        gr.Textbox(label="Describe the task that you would like to have completed:", lines=6, interactive=False),
+        gr.Button(value="Run", interactive=False, variant="primary"),
+        gr.Button(value="Server Ended", interactive=False, variant="secondary")
+    )
+
+    # Initiate threaded exit
+    def threaded_exit():
+        # Wait a moment to allow Gradio to process the click event
+        time.sleep(0.5)
+
+        # Gracefully shut down the application
+        os._exit(0)
+
+    threading.Thread(target=threaded_exit).start()
+
+
 async def main():
     load_environment()
 
     with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
-        gr.Markdown("# Planner-Executor Agentic Pattern")
+        gr.Markdown("# **Planner-Executor** | Agentic Pattern")
+        with gr.Row():
+            with gr.Column(scale=6):
 
-        # Dropdown for loading sample queries
-        sample_selector = gr.Dropdown(
-            label="Load a Sample Query (Optional)",
-            choices=test_query,
-            value=None,
-            interactive=True
-        )
+                # Dropdown for loading sample queries
+                sample_selector = gr.Dropdown(
+                    label="Use a Sample Query: (Optional)",
+                    choices=test_query,
+                    value=None,
+                    interactive=True
+                )
 
-        # Textbox for user to write the query
-        query_textbox = gr.Textbox(
-            label="Describe the task that you would like to have completed.",
-            lines=6,
-            interactive=True,
-        )
+                # Textbox for user to write the query
+                query_textbox = gr.Textbox(
+                    label="Describe the task that you would like to have completed:",
+                    lines=6,
+                    interactive=True,
+                )
 
-        # Run button the execute the work
-        run_button = gr.Button("Run", variant="primary")
+                # Display stream of progress updates
+                progress_output = gr.Markdown(label="Progress")
 
-        # Display stream of progress updates
-        progress_output = gr.Markdown(label="Progress")
-
-        # Final output goes here
-        report = gr.Markdown(label="Work Product")
+                # Final output goes here
+                report = gr.Markdown(label="Work Product")
+            with gr.Column(scale=1, min_width=160):
+                run_button = gr.Button("Run", variant="primary")
+                exit_button = gr.Button("Shutdown Server", variant="stop")
 
         # Connect the events        
         sample_selector.change(fn=lambda q: gr.Textbox(value=q), inputs=sample_selector, outputs=query_textbox)
         run_button.click(fn=wrapped_run, inputs=query_textbox, outputs=[run_button, report, progress_output])
+        exit_button.click(fn=on_exit, inputs=None, outputs=[sample_selector, query_textbox, run_button, exit_button])
 
-    ui.launch(inbrowser=True)
+    try:
+        ui.launch(inbrowser=True, share=False)
+    except Exception as e:
+        print(f"An error occurred: {e}. Shutting down Gradio server...")
+    finally:
+        ui.close()
+        print("Gradio server is shut down.")
+
 
 
 test_query = [
