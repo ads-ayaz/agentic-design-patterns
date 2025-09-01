@@ -96,6 +96,7 @@ class PlannerExecutorPattern:
             task = task_map[task_id]
             resolved_inputs = {dep: completed.tasks_executed[dep] for dep in task.inputs}
             prompt = (
+                f"Task ID: {task_id}\n\n"
                 f"Task Instructions:\n{task.instructions}\n\n"
                 f"Success Criteria:\n{task.success_criteria}\n\n"
                 f"Inputs:\n{resolved_inputs if resolved_inputs else 'None'}\n\n"
