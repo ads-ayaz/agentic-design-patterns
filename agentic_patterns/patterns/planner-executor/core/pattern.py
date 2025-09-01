@@ -4,6 +4,7 @@
 import asyncio
 import json
 from agents import Runner, trace
+from agents.exceptions import MaxTurnsExceeded
 from collections import defaultdict
 from typing import Set
 
@@ -136,12 +137,30 @@ class PlannerExecutorPattern:
         # Retrieve or instantiate the Worker agent
         worker = AgentFactory.get_agent('worker', from_cache=False)
 
-        # When calling this function standalone, set enable_trace to True
-        if enable_trace:
-            with trace(worker.name):
+        try:
+            # When calling this function standalone, set enable_trace to True
+            if enable_trace:
+                with trace(worker.name):
+                    result = await Runner.run(worker, task)
+            else:
                 result = await Runner.run(worker, task)
-        else:
-            result = await Runner.run(worker, task)
-        
+        except MaxTurnsExceeded as e:
+            # The system still returns a result object even when max turns are exceeded
+            result = getattr(e, 'result', None)
+            if result and result.final_output:
+                return result.final_output_as(TaskOutput)
+            else:
+                try:
+                    task_dict = json.loads(task)
+                    tid = task_dict.id
+                except Exception as json_err:
+                    tid = "task-000"
+                finally:
+                    return TaskOutput(
+                        id=tid,
+                        output="",
+                        errors="Worker exceeded the allowed interaction steps and could not complete the task."
+                    )
+
         return result.final_output_as(TaskOutput)
         
