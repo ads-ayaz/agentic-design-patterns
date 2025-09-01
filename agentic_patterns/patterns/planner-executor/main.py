@@ -2,6 +2,7 @@
 # Entry point for running the Planner–Executor pattern with a user query
 
 import asyncio
+import gradio as gr
 
 import core.tool_loader
 from core.env import load_environment
@@ -9,21 +10,139 @@ from core.pattern import PlannerExecutorPattern
 from schema.executor import ExecutorResponse
 
 
+
+async def run(query: str, progress_report: asyncio.Queue = None) -> str:
+    """
+    Run the Planner-Executor pattern and return the response.
+    """
+
+    msg: str = "PATTERN FAILED TO RUN"
+    response: str = ""
+
+    try:
+        result: ExecutorResponse = await PlannerExecutorPattern.run(query, progress_report=progress_report)
+        msg = f"**Status:** {result.status}"
+
+        if result.final_output:
+            response = result.final_output
+        elif result.reasoning:
+            msg = f"**Status:** {result.status}\n\n**Reasoning:**\n{result.reasoning}"
+            response = msg
+        else:
+            response = msg
+    except Exception as e:
+        msg = str(e)
+        response = msg
+    finally:
+        # Signal the end of the progress stream
+        await progress_report.put(f"{msg}\n")
+        await progress_report.put(None)
+        return response
+
+
+async def wrapped_run(query: str):
+    """
+    Wrap the run function to handle the UI updates.
+    """
+
+    # Initialize the progress queue
+    progress_queue = asyncio.Queue()
+    
+    # Update to show 'running' state and disable the button
+    latest_update: str = "⏳ Working..."
+    yield (
+        gr.Button(value="Running...", interactive=False, variant="primary"),    # run_button
+        gr.Markdown(label="Work Product", value=""),                            # report
+        gr.Markdown(label="Progress", value=latest_update)                # progress
+    )
+
+    # Create the co-routine task object
+    response = asyncio.create_task(run(query, progress_report=progress_queue))
+
+    async def progress_consumer():
+        """Consume the progress_queue and yield updates to the UI."""
+        full_log = ""
+        while True:
+            update = await progress_queue.get()
+            
+            # None signals termination
+            if update is None:
+                break
+            
+            full_log += f"{update}\n"
+            yield full_log
+
+    # Handle progress updates for display in the UI.
+    async for update_string in progress_consumer():
+        latest_update = update_string
+        yield (
+            gr.Button(value="Running...", interactive=False, variant="primary"),
+            gr.Markdown(label="Work Product", value=""),
+            gr.Markdown(label="Progress", value=latest_update)
+        )
+    
+    # Return the final response
+    def get_final_status() -> str:
+        status_line = "**Status:**"
+        last_status_index = -1
+        output_list = latest_update.splitlines(keepends=True)
+
+        # Iterate through the list in reverse to find the last match
+        for i in range(len(output_list) - 1, -1, -1):
+            if output_list[i].startswith(status_line):
+                last_status_index = i
+                break
+
+        # If a status line was found, return the slice from that index
+        if last_status_index != -1:
+            return "".join(output_list[last_status_index:])
+        else:
+            # If no status line was found, return a list containing only the last element
+            return output_list[-1]
+
+    work_output = await response
+    final_update = get_final_status()
+    yield (
+        gr.Button(value="Run", interactive=True, variant="primary"),
+        gr.Markdown(label="Work Product", value=work_output),
+        gr.Markdown(label="Progress", value=final_update)
+    )
+
 async def main():
     load_environment()
 
-    query = test_query[1]
+    with gr.Blocks(theme=gr.themes.Default(primary_hue="sky")) as ui:
+        gr.Markdown("# Planner-Executor Agentic Pattern")
 
-    print(f"\nSending query to Planner–Executor pattern:\n{query}\n\n...\n\n")
+        # Dropdown for loading sample queries
+        sample_selector = gr.Dropdown(
+            label="Load a Sample Query (Optional)",
+            choices=test_query,
+            value=None,
+            interactive=True
+        )
 
-    try:
-        result: ExecutorResponse = await PlannerExecutorPattern.run(query)
-        print(f"Status: {result.status}")
-        print(f"\nFinal Output:\n{result.final_output}")
-        if result.reasoning:
-            print(f"\nReasoning: {result.reasoning}")
-    except Exception as e:
-        print(f"❌ Error during execution: {e}")
+        # Textbox for user to write the query
+        query_textbox = gr.Textbox(
+            label="Describe the task that you would like to have completed.",
+            lines=6,
+            interactive=True,
+        )
+
+        # Run button the execute the work
+        run_button = gr.Button("Run", variant="primary")
+
+        # Display stream of progress updates
+        progress_output = gr.Markdown(label="Progress")
+
+        # Final output goes here
+        report = gr.Markdown(label="Work Product")
+
+        # Connect the events        
+        sample_selector.change(fn=lambda q: gr.Textbox(value=q), inputs=sample_selector, outputs=query_textbox)
+        run_button.click(fn=wrapped_run, inputs=query_textbox, outputs=[run_button, report, progress_output])
+
+    ui.launch(inbrowser=True)
 
 
 test_query = [
@@ -81,7 +200,46 @@ test_query = [
 
     """
     blah blah blah
+    """,
+
     """
+    Analyze the top 10 Pokémon trading cards released since 2022 in terms of long-term value potential.
+
+    Your response must:
+    - Research and rank these cards based on rarity, demand trends, grading impact, and tournament relevance.
+    - For each card, explain why it was ranked where it was and what factors could cause its value to rise or fall.
+    - Conclude with an investment guide for serious collectors: which cards to hold, flip, or avoid.
+
+    Output the final result as a markdown table of ranked cards, followed by a narrative advisory section.
+    """,
+
+    """
+    Deconstruct and compare the engineering techniques used in the following LEGO set types:
+    - Modular buildings
+    - LEGO Technic vehicles
+    - Large licensed models (e.g., Millennium Falcon, Hogwarts Castle)
+
+    For each category:
+    - Identify 3 core construction techniques and explain how they work.
+    - Describe the types of pieces and connections used.
+    - Evaluate the design complexity from an engineering standpoint.
+
+    Your output should be a markdown document with one section per category, each containing diagrams or ASCII-style illustrations where helpful. Conclude with a comparative matrix.
+    """,
+
+    """
+    Model three plausible future scenarios for Canada in the year 2035 based on current developments (2022–2024). Your model should consider:
+    - Shifting global alliances and trade patterns
+    - Immigration and demographic changes
+    - Technological and environmental disruptions
+
+    For each scenario:
+    - Assign a name and a short narrative description.
+    - Detail the key drivers, assumptions, and outcomes.
+    - Assess risks and opportunities for Canadian society and policy.
+
+    Present this as a markdown foresight report with structured scenario sections and a summary matrix comparing them.
+    """,
 ]
 
 if __name__ == "__main__":
