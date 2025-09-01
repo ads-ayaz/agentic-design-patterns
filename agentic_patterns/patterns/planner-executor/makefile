@@ -1,6 +1,10 @@
 # Makefile for cleaning non-source files
 
-.PHONY: clean
+.PHONY: setup clean run
+
+setup:
+	@echo "> Seting up planner-executor..."
+	@echo "  planner-executor setup is complete"
 
 clean:
 	@echo "> Cleaning planner-executor..."
@@ -13,3 +17,7 @@ clean:
 	@find . -type f -name "*~" -delete
 
 	@echo "  planner-executor is clean"
+
+run:
+	@echo "🚀 Launching Planner–Executor demo app..."
+	@uv run main.py
