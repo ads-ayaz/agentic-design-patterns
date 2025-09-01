@@ -21,12 +21,13 @@ class PlannerExecutorPattern:
     """
 
     @staticmethod
-    async def run(query: str) -> ExecutorResponse:
+    async def run(query: str, progress_report: asyncio.Queue = None) -> ExecutorResponse:
         """
         Executes the Planner-Executor pattern for the given query.
 
         Args:
             query (str): A user goal or instruction to be handled by the agentic system.
+            progress_report (asyncio.Queue): Optional queue for consumer to monitor run progress.
 
         Returns:
             ExecutorResponse: The final synthesized result from executing the Planner's task plan.
@@ -35,40 +36,53 @@ class PlannerExecutorPattern:
             ValueError: If the Planner or Executor fails to return a valid response.
         """
 
+        # Initialize pq with a throwaway queue if none was provided or use progress_report
+        pq = asyncio.Queue() if progress_report is None else progress_report
+
         planner = AgentFactory.get_agent("planner")
-        # executor = AgentFactory.get_agent("executor")
         consolidator = AgentFactory.get_agent("consolidator")
 
         # Step 1: Use Planner to generate a plan
         with trace(planner.name):
+            await pq.put(f"Running {planner.name}...\n")
             planner_result = await Runner.run(planner, f"User Goal: {query}")
 
         if planner_result is None or not planner_result.final_output:
+            await pq.put(f" - {planner.name}: failed to produce a plan\n")
             raise ValueError("Planner agent failed to produce a valid plan.")
 
         plan = planner_result.final_output_as(TasksPlan)
+        await pq.put(f" - {planner.name}: returned a TasksPlan\n```json\n{plan.model_dump_json(indent=2)}\n```\n")
 
         # Step 2: Execute the plan and consolidate the results
         with trace(consolidator.name):
-            ochestrator_result = await PlannerExecutorPattern._orchestrate_tasks(plan)
+            await pq.put(f"Orchastrating tasks...\n")
+            ochestrator_result = await PlannerExecutorPattern._orchestrate_tasks(plan, progress_report=pq)
 
+            await pq.put(f" - orchastration of tasks plan complete\n")
             consolidation_dict = {'tasks_plan': plan.model_dump(), 'tasks_output': ochestrator_result.model_dump()}
             consolidation_str = json.dumps(consolidation_dict)
 
+            await pq.put(f"Running {consolidator.name}...\n")
             consolidator_result = await Runner.run(consolidator, consolidation_str)
 
         if consolidator_result and consolidator_result.final_output:
+            await pq.put(f"- {consolidator.name} returned a valid response\n")
             return consolidator_result.final_output_as(ExecutorResponse)
         else:
-            raise ValueError("The Consolidator did not return a valid response.")
+            await pq.put(f"- {consolidator.name} failed to returned successfully\n")
+            raise ValueError("The Consolidator did not return a valid response.\n")
         
     @staticmethod
-    async def _orchestrate_tasks(task_plan: TasksPlan) -> OrchestratorResponse:
+    async def _orchestrate_tasks(task_plan: TasksPlan, progress_report: asyncio.Queue = None) -> OrchestratorResponse:
         """
         Pass a plan of tasks to an orchastrator for execution and receive the results of all executed tasks.
         """
 
-        print(f"Started orchestrate_tasks tool")
+        # Initialize pq with a throwaway queue if none was provided or use progress_report
+        pq = asyncio.Queue() if progress_report is None else progress_report
+
+        await pq.put(f"Started orchestrate_tasks tool\n")
         if task_plan is None:
             raise ValueError("Cannot orchestrate an empty task plan.")
 
@@ -76,9 +90,9 @@ class PlannerExecutorPattern:
         if len(task_plan.plan) < 1:
             return completed
 
-        print(f"There are {len(task_plan.plan)} tasks in the plan.")
+        await pq.put(f"There are {len(task_plan.plan)} tasks in the plan.\n")
         task_map = {task.id: task for task in task_plan.plan}
-        running: Set[str] = set()
+        # running: Set[str] = set()
         dependents = defaultdict(list)
         dependency_count = {task.id: len(task.inputs) for task in task_plan.plan}
 
@@ -92,7 +106,7 @@ class PlannerExecutorPattern:
 
         # Executes a single task once its dependencies are resolved.
         async def run_task(task_id: str):
-            print(f"running {task_id}")
+            await pq.put(f"- running {task_id}\n")
             task = task_map[task_id]
             resolved_inputs = {dep: completed.tasks_executed[dep] for dep in task.inputs}
             prompt = (
@@ -104,7 +118,7 @@ class PlannerExecutorPattern:
             )
             result = await PlannerExecutorPattern._assign_task(prompt)
             completed.tasks_executed[task_id] = result
-            print(f"completed {task_id}")
+            await pq.put(f"- completed {task_id}\n")
 
             # Mark dependents as potentially ready
             for dependent in dependents[task_id]:
