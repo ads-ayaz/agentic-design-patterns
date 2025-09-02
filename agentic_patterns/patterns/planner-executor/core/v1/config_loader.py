@@ -1,8 +1,7 @@
-# config_loader.py
+# core/v1/config_loader.py
 # Load the agents-config.yaml file
 
 import yaml
-import json
 from pathlib import Path
 
 

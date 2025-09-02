@@ -1,7 +1,7 @@
-# registries.py
+# core/v1/registries.py
 # Instantiate shared registries
 
-from core.registry import Registry
+from .v1.registry import Registry
 
 tool_registry = Registry.create("Tool")
 output_type_registry = Registry.create("OutputType")

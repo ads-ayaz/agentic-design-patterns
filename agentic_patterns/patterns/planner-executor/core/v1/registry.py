@@ -1,4 +1,4 @@
-# registry.py
+# core/v1/registry.py
 # Defines reusable registry class for tools, output types, and other named entities.
 
 from __future__ import annotations

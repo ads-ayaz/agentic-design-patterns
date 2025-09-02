@@ -1,4 +1,4 @@
-# agent_factory.py
+# core/v1/agent_factory.py
 # Central factory for creating and caching agents defined in the YAML configuration
 
 
@@ -6,8 +6,8 @@ import os
 from datetime import datetime
 from agents import Agent, ModelSettings
 
-from core.config_loader import AgentConfigLoader
-from core.registries import tool_registry, output_type_registry
+from .config_loader import AgentConfigLoader
+from ..registries import tool_registry, output_type_registry
 
 
 class AgentFactory:

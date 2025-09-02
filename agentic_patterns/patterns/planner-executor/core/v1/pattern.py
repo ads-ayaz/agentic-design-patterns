@@ -1,4 +1,4 @@
-# pattern.py
+# core/v1/pattern.py
 # Coordinates execution of the Planner–Executor pattern from a single interface.
 
 import asyncio
@@ -8,11 +8,11 @@ from agents.exceptions import MaxTurnsExceeded
 from collections import defaultdict
 from typing import Set
 
-from core.agent_factory import AgentFactory
 from schema import ExecutorResponse
-from schema.orchestrator import OrchestratorResponse, TaskOutput
-from schema.planner import TasksPlan
+from schema import OrchestratorResponse, TaskOutput
+from schema import TasksPlan
 
+from .agent_factory import AgentFactory
 
 class PlannerExecutorPattern:
     """
