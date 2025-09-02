@@ -8,9 +8,9 @@ import threading
 import time
 
 import core.tool_loader
+from core import PlannerExecutorPattern
 from core.env import load_environment
-from core.pattern import PlannerExecutorPattern
-from schema.executor import ExecutorResponse
+from schema import ExecutorResponse
 
 
 

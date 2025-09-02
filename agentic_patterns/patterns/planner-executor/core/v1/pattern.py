@@ -9,7 +9,7 @@ from collections import defaultdict
 from typing import Set
 
 from core.agent_factory import AgentFactory
-from schema.executor import ExecutorResponse
+from schema import ExecutorResponse
 from schema.orchestrator import OrchestratorResponse, TaskOutput
 from schema.planner import TasksPlan
 
